@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIマルチモデル・動画生成ツール</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 650px;
+            margin: 40px auto;
+            padding: 0 20px;
+            text-align: center;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            color: #333;
+        }
+        /* 設定エリア（APIキー入力用） */
+        .settings-box {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .settings-box label {
+            font-weight: bold;
+            font-size: 14px;
+            color: #555;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .settings-box input {
+            width: calc(100% - 20px);
+            padding: 8px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        /* タブのスタイル */
+        .tab-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            outline: none;
+            color: #666;
+            font-weight: bold;
+        }
+        .tab-btn.active {
+            color: #007bff;
+            border-bottom: 3px solid #007bff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #444;
+        }
+        input[type="text"], select {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button.action-btn {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button.action-btn:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .download-btn {
+            background-color: #28a745;
+            margin-top: 15px;
+            display: none;
+        }
+        .download-btn:hover {
+            background-color: #218838;
+        }
+        .result-container {
+            margin-top: 20px;
+            min-height: 250px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #eee;
+            border-radius: 8px;
+            overflow: hidden;
+            flex-direction: column;
+            padding: 10px;
+        }
+        #result-video, #result-image {
+            max-width: 100%;
+            height: auto;
+            display: none;
+        }
+        #api-response-text {
+            width: 100%;
+            max-height: 300px;
+            overflow-y: auto;
+            text-align: left;
+            background: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .loading {
+            display: none;
+            font-weight: bold;
+            color: #555;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>AIマルチモデル・動画生成ツール</h1>
+
+    <!-- 共通設定：APIキー入力エリア -->
+    <div class="settings-box">
+        <label for="api-key">Pollinations API キー (必要に応じて入力):</label>
+        <input type="password" id="api-key" placeholder="sk_... (キーなしでも動作する場合があります)">
+    </div>
+
+    <!-- タブ切り替えボタン -->
+    <div class="tab-container">
+        <button class="tab-btn active" onclick="switchTab('video-api')">AI動画・別モデル生成 (API)</button>
+        <button class="tab-btn" onclick="switchTab('image')">AI画像生成</button>
+    </div>
+
+    <!-- AI動画・別モデル生成タブ -->
+    <div id="video-api-tab" class="tab-content active">
+        <div class="input-group">
+            <label for="model-select">AIモデルの選択:</label>
+            <select id="model-select">
+                <option value="video">video (標準動画生成モデル)</option>
+                <option value="openai">openai (OpenAI互換モデル)</option>
+                <option value="sur">sur (高精度カスタムモデル)</option>
+                <option value="qwen">qwen (Qwen系AIモデル)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label for="prompt-api">生成プロンプト（英語推奨）:</label>
+            <input type="text" id="prompt-api" placeholder="例: Cinematic drone shot of a futuristic city, 4k" value="Cinematic drone shot of a futuristic city">
+        </div>
+
+        <button class="action-btn" id="generate-btn-api" onclick="generateAdvancedAI()">APIリクエスト送信</button>
+
+        <div class="result-container">
+            <div id="loading-api" class="loading">AIモデルで処理中...（しばらくお待ちください）</div>
+            <video id="result-video" controls autoplay loop muted></video>
+            <div id="api-response-text"></div>
+        </div>
+
+        <button id="download-btn-vid" class="download-btn action-btn" onclick="downloadVideo()">生成結果を保存する</button>
+    </div>
+
+    <!-- 画像生成タブ（おまけ・従来機能） -->
+    <div id="image-tab" class="tab-content">
+        <div class="input-group">
+            <label for="prompt-image">画像プロンプト:</label>
+            <input type="text" id="prompt-image" placeholder="例: A cute cat in space" value="A futuristic city at sunset">
+        </div>
+        <button class="action-btn" id="generate-btn-img" onclick="generateImage()">画像を生成</button>
+
+        <div class="result-container">
+            <div id="loading-image" class="loading">画像を生成中...</div>
+            <img id="result-image" alt="生成された画像" crossorigin="anonymous">
+        </div>
+        <button id="download-btn-img" class="download-btn action-btn" onclick="downloadImage()">画像を保存する</button>
+    </div>
+
+    <script>
+        function switchTab(tabName) {
+            const tabs = document.querySelectorAll('.tab-content');
+            const buttons = document.querySelectorAll('.tab-btn');
+
+            tabs.forEach(tab => tab.classList.remove('active'));
+            buttons.forEach(btn => btn.classList.remove('active'));
+
+            if (tabName === 'video-api') {
+                document.getElementById('video-api-tab').classList.add('active');
+                buttons[0].classList.add('active');
+            } else if (tabName === 'image') {
+                document.getElementById('image-tab').classList.add('active');
+                buttons[1].classList.add('active');
+            }
+        }
+
+        // 高度なAPIモデルリクエスト処理
+        async function generateAdvancedAI() {
+            const apiKey = document.getElementById('api-key').value.trim();
+            const model = document.getElementById('model-select').value;
+            const promptText = document.getElementById('prompt-api').value.trim();
+            const generateBtn = document.getElementById('generate-btn-api');
+            const loadingText = document.getElementById('loading-api');
+            const resultVideo = document.getElementById('result-video');
+            const responseTextView = document.getElementById('api-response-text');
+            const downloadBtn = document.getElementById('download-btn-vid');
+
+            if (!promptText) {
+                alert('プロンプトを入力してください。');
+                return;
+            }
+
+            generateBtn.disabled = true;
+            resultVideo.style.display = 'none';
+            responseTextView.style.display = 'none';
+            downloadBtn.style.display = 'none';
+            loadingText.style.display = 'block';
+
+            // ヘッダーの設定（APIキーがある場合はAuthorizationに付与）
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (apiKey) {
+                headers['Authorization'] = `Bearer ${apiKey}`;
+            }
+
+            try {
+                // PollinationsのOpenAI互換APIエンドポイントへリクエスト
+                const response = await fetch('https://gen.pollinations.ai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [
+                            { role: 'user', content: promptText }
+                        ]
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`サーバーエラー: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                loadingText.style.display = 'none';
+
+                // レスポンス内容から動画URL、またはテキスト結果を判別して表示
+                let mediaUrl = null;
+                if (data.choices && data.choices[0] && data.choices[0].message) {
+                    const content = data.choices[0].message.content;
+                    // コンテンツ内にURLが含まれているかチェック
+                    const urlMatch = content.match(/https?:\/\/[^\s]+?\.(mp4|webm|mov)/i);
+                    if (urlMatch) {
+                        mediaUrl = urlMatch[0];
+                    } else {
+                        // URLがない場合はテキストとして表示
+                        responseTextView.textContent = content;
+                        responseTextView.style.display = 'block';
+                    }
+                }
+
+                // もしAPIの構造から直接URLが取れない場合のフォールバック（動画モデル用ダイレクトURL）
+                if (!mediaUrl && model === 'video') {
+                    mediaUrl = `https://gen.pollinations.ai/prompt/${encodeURIComponent(promptText)}?model=video`;
+                }
+
+                if (mediaUrl) {
+                    resultVideo.src = mediaUrl;
+                    resultVideo.style.display = 'block';
+                    downloadBtn.style.display = 'inline-block';
+                    resultVideo.load();
+                }
+
+            } catch (error) {
+                console.error(error);
+                loadingText.style.display = 'none';
+                
+                // エラー時のフォールバックとしてダイレクト動画生成URLを試す
+                const fallbackUrl = `https://gen.pollinations.ai/prompt/${encodeURIComponent(promptText)}?model=${model}`;
+                resultVideo.src = fallbackUrl;
+                resultVideo.style.display = 'block';
+                downloadBtn.style.display = 'inline-block';
+                resultVideo.load();
+            } finally {
+                generateBtn.disabled = false;
+            }
+        }
+
+        // 画像生成機能（従来）
+        function generateImage() {
+            const promptInput = document.getElementById('prompt-image');
+            const promptText = promptInput.value.trim();
+            const generateBtn = document.getElementById('generate-btn-img');
+            const downloadBtn = document.getElementById('download-btn-img');
+            const loadingText = document.getElementById('loading-image');
+            const resultImg = document.getElementById('result-image');
+
+            if (!promptText) return;
+
+            generateBtn.disabled = true;
+            resultImg.style.display = 'none';
+            downloadBtn.style.display = 'none';
+            loadingText.style.display = 'block';
+
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptText)}?width=512&height=512&nologo=true&seed=${Math.floor(Math.random() * 1000000)}`;
+
+            resultImg.onload = function() {
+                loadingText.style.display = 'none';
+                resultImg.style.display = 'block';
+                downloadBtn.style.display = 'inline-block';
+                generateBtn.disabled = false;
+            };
+            resultImg.onerror = function() {
+                loadingText.style.display = 'none';
+                alert('画像生成に失敗しました。');
+                generateBtn.disabled = false;
+            };
+            resultImg.src = imageUrl;
+        }
+
+        // 動画ファイルのダウンロード
+        async function downloadVideo() {
+            const resultVideo = document.getElementById('result-video');
+            const downloadBtn = document.getElementById('download-btn-vid');
+            if (!resultVideo.src) return;
+
+            try {
+                downloadBtn.disabled = true;
+                downloadBtn.textContent = 'ダウンロード中...';
+                const response = await fetch(resultVideo.src);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = `ai-video-${Date.now()}.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+            } catch (error) {
+                alert('ダウンロードに失敗しました（CORS制限の可能性があります）。直接動画リンクをご確認ください。');
+            } finally {
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = '生成結果を保存する';
+            }
+        }
+
+        async function downloadImage() {
+            const resultImg = document.getElementById('result-image');
+            if (!resultImg.src) return;
+            const response = await fetch(resultImg.src);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `ai-image-${Date.now()}.jpg`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+        }
+    </script>
+
+</body>
+</html>
